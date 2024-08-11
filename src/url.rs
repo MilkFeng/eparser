@@ -6,6 +6,6 @@ struct RelativeUrl {
 
 enum Url {
     Absolute(url::Url),
-    Relative(Path),
+    Relative(Box<RelativeUrl>),
 }
 
