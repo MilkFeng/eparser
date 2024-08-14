@@ -1,5 +1,6 @@
 use std::fmt::Display;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
 
 /// MIME media type of a resource
 ///
@@ -11,11 +12,6 @@ use std::ops::Deref;
 /// so it can be used without restriction in EPUB or foreign content documents.
 ///
 /// For example, `GIF` and `JPG` are core media types.
-///
-/// # Examples
-/// ``` no_run
-/// let media_type = MediaType::new("application/xhtml+xml");
-/// ```
 ///
 /// # References
 /// [EPUB 3.3 SPEC](https://www.w3.org/TR/epub-33/#sec-core-media-types)
@@ -30,17 +26,43 @@ impl Deref for MediaType {
     }
 }
 
+impl DerefMut for MediaType {
+    fn deref_mut(&mut self) -> &mut str {
+        &mut self.0
+    }
+}
+
+impl FromStr for MediaType {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(MediaType(s.to_string()))
+    }
+}
+
+impl Display for MediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl MediaType {
+
+    /// Create a new media type
+    pub fn new(media_type: &str) -> Self {
+        MediaType(media_type.to_string())
+    }
+
     /// Check if the media type is a core media type
-    fn is_core_media_type(&self) -> bool {
+    pub fn is_core_media_type(&self) -> bool {
         media_types::ALL_CORE_MEDIA_TYPES.iter()
             .any(|&core_media_type| core_media_type.eq(self))
     }
 }
 
 /// Core media types
-mod media_types {
-    use crate::media_type::MediaType;
+pub mod media_types {
+    use crate::package::media_type::MediaType;
     use once_cell::sync::Lazy;
 
     // Core media types

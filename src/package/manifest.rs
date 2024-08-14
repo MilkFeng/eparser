@@ -1,14 +1,18 @@
 use crate::package::media_type::MediaType;
-use crate::property::Properties;
+use crate::package::property::{Properties, Property};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
+use std::string::ToString;
+use once_cell::sync::Lazy;
+use thiserror::Error;
 use url::Url;
+use crate::package::prefix::OPF;
 
 /// A Publication Resource.
 ///
 /// identifies a publication resource by the URL in its [href] attribute.
 #[derive(Debug, PartialEq, Clone)]
-pub(crate) struct Resource {
+pub struct Resource {
     /// Unique identifier for the resource.
     pub id: String,
 
@@ -36,16 +40,28 @@ pub(crate) struct Resource {
 
     /// The properties attribute is a space-separated list of property values.
     pub properties: Option<Properties>,
+}
 
-    /// The resource data
-    pub data: Option<Vec<u8>>,
+#[derive(Debug, Error)]
+pub enum ManifestCheckError {
+    #[error("The id of the resource must be unique, but {0} is duplicated")]
+    DeduplicatedId(String),
+
+    #[error("The href of the resource must be unique, but {0} is duplicated")]
+    DeduplicatedHref(Url),
+
+    #[error("The nav resource not found")]
+    NavResourceNotFound,
+
+    #[error("The id {0} not found in the manifest")]
+    IdNotFound(String),
 }
 
 /// Manifest provides an exhaustive list of publication resources used in the rendering of the content.
 ///
 /// Do not modify it after it has been created.
 #[derive(Debug, Clone)]
-pub(crate) struct Manifest {
+pub struct Manifest {
     /// The unique identifier of the manifest element.
     pub id: Option<String>,
 
@@ -62,43 +78,51 @@ pub(crate) struct Manifest {
     nav_resource: usize,
 }
 
+static NAV: Lazy<Property> = Lazy::new(|| {
+    Property::from_prefix(&OPF, "nav".to_string())
+});
+
 impl Manifest {
     /// Create a new Manifest
-    pub fn new(id: Option<&str>, resources: Vec<Resource>) -> Self {
+    pub fn new(id: Option<&str>, resources: Vec<Resource>) -> Result<Self, ManifestCheckError> {
 
         let mut id_to_resource = HashMap::new();
         let mut href_to_resource = HashMap::new();
 
         for (index, resource) in resources.iter().enumerate() {
-            id_to_resource.insert(resource.id.clone(), index)
-                .expect("The id of the resource must be unique");
+            let res = id_to_resource.insert(resource.id.clone(), index);
+            if res.is_some() {
+                return Err(ManifestCheckError::DeduplicatedId(resource.id.clone()));
+            }
 
-            href_to_resource.insert(resource.href.clone(), index)
-                .expect("The href of the resource must be unique");
+            let res = href_to_resource.insert(resource.href.clone(), index);
+            if res.is_some() {
+                return Err(ManifestCheckError::DeduplicatedHref(resource.href.clone()));
+            }
         }
 
         // check fallback
         for resource in resources.iter() {
             if let Some(fallback) = &resource.fallback {
                 id_to_resource.get(fallback)
-                    .expect("The fallback attribute must resolve to another item in the manifest");
+                    .ok_or_else(|| ManifestCheckError::IdNotFound(fallback.clone()))?;
             }
         }
 
         // check nav
         let nav_resource = resources.iter().position(|resource| {
             resource.properties.as_ref()
-                .map(|properties| properties.iter().any(|property| property.eq("nav")))
+                .map(|properties| properties.contains(&NAV))
                 .unwrap_or(false)
-        }).expect("The nav resource must be present");
+        }).ok_or(ManifestCheckError::NavResourceNotFound)?;
 
-        Manifest {
+        Ok(Manifest {
             id: id.map(|id| id.to_string()),
             resources,
             id_to_resource,
             href_to_resource,
             nav_resource,
-        }
+        })
     }
 
     /// Get a resource by id

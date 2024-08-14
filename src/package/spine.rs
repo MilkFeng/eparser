@@ -19,7 +19,7 @@ pub struct Spine {
     pub dir: Option<String>,
 
     /// The list of spine references.
-    items: Vec<SpineReference>,
+    pub refs: Vec<SpineReference>,
 }
 
 
@@ -27,13 +27,13 @@ impl Deref for Spine {
     type Target = Vec<SpineReference>;
 
     fn deref(&self) -> &Self::Target {
-        &self.items
+        &self.refs
     }
 }
 
 
 impl DerefMut for Spine {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.items
+        &mut self.refs
     }
 }

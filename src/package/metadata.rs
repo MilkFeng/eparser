@@ -1,8 +1,14 @@
+use crate::package::property::{Properties, Property, WithNamespace};
+use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use chrono::{Date, DateTime, Utc};
-use url::Url;
-use crate::property::{Properties, Property};
+use std::str::FromStr;
+use once_cell::sync::Lazy;
+use thiserror::Error;
+use url::{ParseError, Url};
+use crate::package::media_type::MediaType;
+use crate::package::prefix::{DC, DCTERMS};
 
 /// The basic metadata element of an EPUB.
 ///
@@ -25,7 +31,7 @@ pub struct MetadataElement {
     /// # Examples
     ///
     /// `dc:title`, `dc:creator`, `dc:language`
-    pub property: Property,
+    pub tag_name: WithNamespace,
 }
 
 
@@ -39,6 +45,10 @@ pub struct MetadataElement {
 /// "refines" scheme, and the URL-fragment string will be parsed as a URL fragment.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Refines(Url);
+
+#[derive(Debug, Error)]
+#[error("Invalid URL")]
+pub struct RefinesError(#[from] ParseError);
 
 impl Deref for Refines {
     type Target = Url;
@@ -60,9 +70,17 @@ impl From<Url> for Refines {
     }
 }
 
-impl From<&str> for Refines {
-    fn from(url: &str) -> Self {
-        Refines(Url::parse(url).unwrap())
+impl Refines {
+    pub fn new(url: Url) -> Self {
+        Refines(url)
+    }
+
+    pub fn from_string(url: &str) -> Result<Self, RefinesError> {
+        Ok(Refines(Url::parse(url)?))
+    }
+
+    pub fn from_relative_url(relative: &str, base_url: &Url) -> Result<Self, RefinesError> {
+        Ok(Refines(base_url.join(relative)?))
     }
 }
 
@@ -113,7 +131,7 @@ pub struct Link {
     ///
     /// as more than one media type could be served from the same URL.
     /// EPUB creators MUST specify the attribute for all linked resources within the EPUB container.
-    pub media_type: Option<String>,
+    pub media_type: Option<MediaType>,
 
     /// The properties attribute is a space-separated list of property values.
     pub property: Option<Property>,
@@ -122,20 +140,31 @@ pub struct Link {
     pub refines: Option<Refines>,
 
     /// The value of the link element.
-    pub value: String
+    pub value: String,
 }
 
+
+#[derive(Debug, Error)]
+pub enum MetadataCheckError {
+    #[error("The metadata section MUST contain exactly at least one {0} element.")]
+    MissingElementError(String),
+
+    #[error("The metadata section MUST contain exactly one {0} property containing the last modification date.")]
+    MissingLastModifiedError(String),
+
+    #[error("The last modified date is invalid. {0}")]
+    DateParseError(#[from] chrono::ParseError),
+}
 
 /// The metadata section of an EPUB Publication.
 #[derive(Debug, Clone)]
 pub struct Metadata {
-
     /// All metadata elements
     ///
     /// The metadata elements are used to provide information about the publication.
     ///
     /// It MUST contain Dublin Core Metadata Element Set
-    pub elems: HashMap<Property, Vec<MetadataElement>>,
+    pub elems: HashMap<WithNamespace, Vec<MetadataElement>>,
 
     /// All meta elements
     pub metas: Vec<Meta>,
@@ -148,7 +177,26 @@ pub struct Metadata {
     /// The metadata section MUST contain exactly one dcterms:modified property containing the last modification date.
     /// The value of this property MUST be an xmlschema-2 dateTime conformant date of the form: CCYY-MM-DDThh:mm:ssZ
     pub last_modified: DateTime<Utc>,
+
+    /// can not be instantiated from outside
+    _private: PhantomData<()>,
 }
+
+static DCTERMS_MODIFIED: Lazy<Property> = Lazy::new(|| {
+    Property::from_prefix(&DCTERMS, "modified".to_string())
+});
+
+static DC_TITLE: Lazy<WithNamespace> = Lazy::new(|| {
+    WithNamespace::from_prefix(&DC, "title".to_string())
+});
+
+static DC_LANGUAGE: Lazy<WithNamespace> = Lazy::new(|| {
+    WithNamespace::from_prefix(&DC, "language".to_string())
+});
+
+static DC_IDENTIFIER: Lazy<WithNamespace> = Lazy::new(|| {
+    WithNamespace::from_prefix(&DC, "identifier".to_string())
+});
 
 impl Metadata {
     /// Create a new Metadata
@@ -156,14 +204,14 @@ impl Metadata {
         elems: Vec<MetadataElement>,
         metas: Vec<Meta>,
         links: Vec<Link>,
-    ) -> Self {
+    ) -> Result<Self, MetadataCheckError> {
         let elems = {
-            let mut elems_map: HashMap<Property, Vec<MetadataElement>> = HashMap::new();
+            let mut elems_map= HashMap::new();
 
             // group metadata elements by property
             for elem in elems {
-                let property = elem.property.clone();
-                elems_map.entry(property)
+                let wn = elem.tag_name.clone();
+                elems_map.entry(wn)
                     .or_insert_with(Vec::new)
                     .push(elem);
             }
@@ -172,51 +220,52 @@ impl Metadata {
 
         // check dublin core metadata element set
         {
-            fn error_msg(property: &str) -> String {
-                format!("The metadata section MUST contain exactly at least one {} element.", property)
+
+            fn check(elems_map: &HashMap<WithNamespace, Vec<MetadataElement>>, tag_name: &WithNamespace) -> Result<(), MetadataCheckError> {
+                let elems = elems_map.get(&tag_name);
+                if elems.is_none() || elems.unwrap().is_empty() {
+                    Err(MetadataCheckError::MissingElementError(tag_name.reference.clone()))
+                } else {
+                    Ok(())
+                }
             }
 
-            fn check_property(elems_map: &HashMap<Property, Vec<MetadataElement>>, property: &str) {
-                let elems = elems_map.get(property.to());
-                assert!(elems.is_some() && elems.unwrap().len() >= 1, "{}", error_msg(property));
-            }
-
-            check_property(&elems, "dc:title");
-            check_property(&elems, "dc:language");
-            check_property(&elems, "dc:identifier");
+            check(&elems, &DC_TITLE)?;
+            check(&elems, &DC_LANGUAGE)?;
+            check(&elems, &DC_IDENTIFIER)?;
         }
 
         // check lastModified
         let last_modified = {
             let last_modified = metas.iter()
-                .find(|meta| meta.property.eq("dcterms:modified"))
-                .expect("The metadata section MUST contain exactly one dcterms:modified property containing the last modification date.");
+                .find(|&meta| meta.property.eq(&DCTERMS_MODIFIED))
+                .ok_or(MetadataCheckError::MissingLastModifiedError("dcterms:modified".to_string()))?;
 
-            DateTime::parse_from_rfc3339(&last_modified.value)
-                .expect("The value of this property MUST be an xmlschema-2 dateTime conformant date of the form: CCYY-MM-DDThh:mm:ssZ")
+            DateTime::parse_from_rfc3339(&last_modified.value)?
                 .to_utc()
         };
 
-        Metadata {
+        Ok(Metadata {
             elems,
             metas,
             links,
             last_modified,
-        }
+            _private: Default::default(),
+        })
     }
 
     /// All dc:title elements
-    fn titles(&self) -> Vec<&MetadataElement> {
-        self.elems.get("dc:title".to()).unwrap()
+    pub fn titles(&self) -> &Vec<MetadataElement> {
+        self.elems.get(&DC_TITLE).unwrap()
     }
 
     /// All dc:language elements
-    fn languages(&self) -> Vec<&MetadataElement> {
-        self.elems.get("dc:language".to()).unwrap()
+    pub fn languages(&self) -> &Vec<MetadataElement> {
+        self.elems.get(&DC_LANGUAGE).unwrap()
     }
 
     /// All dc:identifier elements
-    fn identifiers(&self) -> Vec<&MetadataElement> {
-        self.elems.get("dc:identifier".to()).unwrap()
+    pub fn identifiers(&self) -> &Vec<MetadataElement> {
+        self.elems.get(&DC_IDENTIFIER).unwrap()
     }
 }
