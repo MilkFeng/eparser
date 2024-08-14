@@ -1,36 +1,42 @@
+use std::cmp::PartialEq;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
+use std::str::FromStr;
 use url::Url;
 
 /// The prefix attribute defines prefix mappings for use in property staticues.
-///
-/// # Arguments
-///
-/// - `prefix`(0) - A string that holds the prefix
-/// - `url`(1) - A string that holds the URL
 ///
 /// # References
 ///
 /// [EPUB 3.3 SPEC prefix-attr](https://www.w3.org/TR/epub-33/#sec-prefix-attr)
 #[derive(Debug, PartialEq, Clone)]
-struct Prefix(String, Url);
+pub(crate) struct Prefix {
+    /// A string that holds the prefix
+    pub prefix: String,
+
+    /// The URL
+    pub url: Url,
+}
 
 impl Prefix {
     /// Create a new Prefix
-    fn new(prefix: &str, url: &str) -> Self {
-        Prefix(prefix.trim().to_string(), Url::parse(url).unwrap())
+    pub fn new(prefix: &str, url: &str) -> Self {
+        Prefix {
+            prefix: prefix.to_string(),
+            url: Url::parse(url).unwrap(),
+        }
     }
 
     /// Convert a string to a [Prefix].
     ///
     /// If the string does not contains ":", find the prefix in reserved prefixes.
     /// If the string contains ":", split the string by ":" and return a new prefix.
-    fn from_string(string: &str) -> Result<Self, ()> {
+    pub fn from_string(string: &str) -> Result<Self, ()> {
         let parts: Vec<&str> = string.splitn(2, ':').collect();
         if parts.len() == 1 {
             reserved_prefixes::ALL_RESERVED_PREFIXES.iter()
-                .find(|&&prefix| prefix.0 == string)
+                .find(|&&prefix| prefix.prefix == string)
                 .map(|&prefix| prefix.deref().clone())
                 .ok_or(())
         } else {
@@ -41,7 +47,16 @@ impl Prefix {
     /// Check if the prefix is reserved
     fn is_reserved(&self) -> bool {
         reserved_prefixes::ALL_RESERVED_PREFIXES.iter()
-            .any(|&prefix| prefix.deref().0 == self.0)
+            .any(|&prefix| prefix.deref().prefix == self.prefix)
+    }
+}
+
+
+impl PartialEq<str> for Prefix {
+    fn eq(&self, other: &str) -> bool {
+        Prefix::from_string(other)
+            .map(|other| *self == other)
+            .unwrap_or(false)
     }
 }
 
@@ -51,10 +66,18 @@ impl From<&str> for Prefix {
     }
 }
 
+impl FromStr for Prefix {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Prefix::from_string(s)
+    }
+}
+
 /// Contains All reserved prefixes for EPUB 3.3
 ///
 /// Reserved prefixes do not need to be declared in the prefix attribute.
-mod reserved_prefixes {
+pub(crate) mod reserved_prefixes {
     use crate::property::Prefix;
     use once_cell::sync::Lazy;
 
@@ -122,7 +145,7 @@ mod reserved_prefixes {
 
 /// A reference to a prefix
 #[derive(Debug, PartialEq, Clone)]
-enum PrefixReference {
+pub(crate) enum PrefixReference {
     /// A prefix reference that holds a prefix
     Prefix(String),
 
@@ -162,9 +185,23 @@ impl PrefixReference {
     }
 }
 
+impl PartialEq<str> for PrefixReference {
+    fn eq(&self, other: &str) -> bool {
+        PrefixReference::from_string(other) == *self
+    }
+}
+
 impl From<&str> for PrefixReference {
     fn from(string: &str) -> Self {
         PrefixReference::from_string(string)
+    }
+}
+
+impl FromStr for PrefixReference {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(PrefixReference::from_string(s))
     }
 }
 
@@ -175,21 +212,25 @@ impl From<&str> for PrefixReference {
 /// Refer to each element's definition for the reserved vocabulary for the attribute.
 /// For example: `dcterms:modified`, `schema:version`, `mathml`
 ///
-/// # Arguments
-///
-/// - `prefix`(0) - A prefix reference
-/// - `reference`(1) - A string that holds the reference
-///
 /// # References
 ///
 /// [EPUB 3.3 SPEC property-datatype](https://www.w3.org/TR/epub-33/#sec-property-datatype)
 #[derive(Debug, PartialEq, Clone)]
-struct Property(PrefixReference, String);
+pub(crate) struct Property {
+    /// A prefix reference
+    pub prefix: PrefixReference,
+
+    /// A string that holds the reference
+    pub reference: String,
+}
 
 impl Property {
     /// Create a new Property
     pub fn new(prefix: PrefixReference, reference: &str) -> Self {
-        Property(prefix, reference.to_string())
+        Property {
+            prefix,
+            reference: reference.trim().to_string(),
+        }
     }
 
     /// Convert a string to a [Property].
@@ -205,10 +246,10 @@ impl Property {
     pub fn from_string(string: &str) -> Result<Self, ()> {
         let parts: Vec<&str> = string.splitn(2, ':').collect();
         if parts.len() == 1 {
-            Ok(Property(PrefixReference::Default, string.trim().to_string()))
+            Ok(Property::new(PrefixReference::Default, string.trim()))
         } else {
             let prefix = PrefixReference::from_string(parts[0]);
-            Ok(Property(prefix, parts[1].trim().to_string()))
+            Ok(Property::new(prefix, parts[1].trim()))
         }
     }
 }
@@ -219,10 +260,26 @@ impl From<String> for Property {
     }
 }
 
+impl FromStr for Property {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Property::from_string(s)
+    }
+}
+
+impl PartialEq<str> for Property {
+    fn eq(&self, other: &str) -> bool {
+        Property::from_string(other)
+            .map(|other| *self == other)
+            .unwrap_or(false)
+    }
+}
+
 
 /// A white space-separated list of property values.
 #[derive(Debug, PartialEq, Clone)]
-struct Properties(Vec<Property>);
+pub(crate) struct Properties(Vec<Property>);
 
 impl Properties {
     /// Create a new Properties
@@ -243,9 +300,31 @@ impl Properties {
     }
 }
 
+impl Deref for Properties {
+    type Target = Vec<Property>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Properties {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
 impl From<&str> for Properties {
     fn from(string: &str) -> Self {
         Properties::from_string(&string).unwrap()
+    }
+}
+
+impl FromStr for Properties {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Properties::from_string(s)
     }
 }
 
