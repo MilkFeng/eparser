@@ -6,10 +6,12 @@ pub mod oebps;
 
 #[cfg(test)]
 mod test {
+    use std::fs::File;
+
+    use zip::ZipArchive;
+
     use crate::book::parse_book;
     use crate::file::read_zip;
-    use std::fs::File;
-    use zip::ZipArchive;
 
     #[test]
     fn test_parse() {

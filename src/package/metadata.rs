@@ -1,14 +1,15 @@
-use crate::package::property::{Properties, Property, WithNamespace};
-use chrono::{DateTime, Utc};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::str::FromStr;
+
+use chrono::{DateTime, Utc};
 use once_cell::sync::Lazy;
 use thiserror::Error;
 use url::{ParseError, Url};
+
 use crate::package::media_type::MediaType;
 use crate::package::prefix::{DC, DCTERMS};
+use crate::package::property::{Properties, Property, WithNamespace};
 
 /// The basic metadata element of an EPUB.
 ///
@@ -164,7 +165,7 @@ pub struct Metadata {
     /// The metadata elements are used to provide information about the publication.
     ///
     /// It MUST contain Dublin Core Metadata Element Set
-    pub elems: HashMap<WithNamespace, Vec<MetadataElement>>,
+    pub elems: BTreeMap<WithNamespace, Vec<MetadataElement>>,
 
     /// All meta elements
     pub metas: Vec<Meta>,
@@ -206,7 +207,7 @@ impl Metadata {
         links: Vec<Link>,
     ) -> Result<Self, MetadataCheckError> {
         let elems = {
-            let mut elems_map= HashMap::new();
+            let mut elems_map= BTreeMap::new();
 
             // group metadata elements by property
             for elem in elems {
@@ -221,7 +222,7 @@ impl Metadata {
         // check dublin core metadata element set
         {
 
-            fn check(elems_map: &HashMap<WithNamespace, Vec<MetadataElement>>, tag_name: &WithNamespace) -> Result<(), MetadataCheckError> {
+            fn check(elems_map: &BTreeMap<WithNamespace, Vec<MetadataElement>>, tag_name: &WithNamespace) -> Result<(), MetadataCheckError> {
                 let elems = elems_map.get(&tag_name);
                 if elems.is_none() || elems.unwrap().is_empty() {
                     Err(MetadataCheckError::MissingElementError(tag_name.reference.clone()))

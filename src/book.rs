@@ -1,10 +1,12 @@
+use std::fmt::{Debug, Display};
+
+use thiserror::Error;
+
 use crate::file::Files;
 use crate::oebps::{Container, ContainerError};
-use crate::package::parser::{PackageError, PackageParser, ParseOptions};
-use crate::package::prefix::Prefixes;
 use crate::package::Package;
-use std::fmt::{Debug, Display};
-use thiserror::Error;
+use crate::package::parser::{PackageError, PackageParseOptions, PackageParser};
+use crate::package::prefix::Prefixes;
 
 #[derive(Debug)]
 pub struct EpubBook {
@@ -54,7 +56,7 @@ pub fn parse_book(files: Files) -> Result<EpubBook, ParseBookError> {
             .map_err(ParseBookError::ParseContainerError)?
     };
 
-    let package_parse_options = ParseOptions {
+    let package_parse_options = PackageParseOptions {
         base_url: container.rootfiles[0].full_path.clone(),
         reserved_prefixes: Prefixes::reserved(),
     };

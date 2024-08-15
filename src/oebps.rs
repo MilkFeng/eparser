@@ -1,10 +1,12 @@
-use minidom::Element;
 use std::error::Error;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::str::FromStr;
+
+use minidom::Element;
 use thiserror::Error;
 use url::Url;
+
 use crate::package::media_type::media_types::OEBPS;
 use crate::package::media_type::MediaType;
 

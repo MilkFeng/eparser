@@ -1,8 +1,10 @@
-use crate::package::prefix::{Prefix, PrefixMap};
 use std::cmp::PartialEq;
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
+
 use thiserror::Error;
+
+use crate::package::prefix::{Prefix, PrefixMap};
 
 #[derive(Debug, Error)]
 #[error("Invalid namespace: {0:?}")]
@@ -12,9 +14,8 @@ pub struct NamespaceError(Option<String>);
 /// A value with a namespace.
 ///
 /// It can be used to represent a property or a tag name.
-#[derive(Debug, PartialEq, Clone, Hash, Eq)]
+#[derive(Debug, PartialEq, Clone, Hash, Eq, Ord, PartialOrd)]
 pub struct WithNamespace {
-
     /// The namespace of the value.
     pub ns: String,
 
@@ -23,7 +24,6 @@ pub struct WithNamespace {
 }
 
 impl WithNamespace {
-
     /// Create a new WithNamespace from a namespace and a reference.
     pub fn new(ns: String, reference: String) -> Self {
         WithNamespace { ns, reference }

@@ -1,12 +1,14 @@
-use crate::package::media_type::MediaType;
-use crate::package::property::{Properties, Property};
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::string::ToString;
+
 use once_cell::sync::Lazy;
 use thiserror::Error;
 use url::Url;
+
+use crate::package::media_type::MediaType;
 use crate::package::prefix::OPF;
+use crate::package::property::{Properties, Property};
 
 /// A Publication Resource.
 ///
@@ -85,7 +87,6 @@ static NAV: Lazy<Property> = Lazy::new(|| {
 impl Manifest {
     /// Create a new Manifest
     pub fn new(id: Option<&str>, resources: Vec<Resource>) -> Result<Self, ManifestCheckError> {
-
         let mut id_to_resource = HashMap::new();
         let mut href_to_resource = HashMap::new();
 

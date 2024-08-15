@@ -1,15 +1,17 @@
-use crate::package::manifest::{Manifest, ManifestCheckError, Resource};
-use crate::package::metadata::{Link, Meta, Metadata, MetadataCheckError, MetadataElement, Refines};
-use crate::package::prefix::{Prefixes, PrefixesStack, DC};
-use crate::package::property::{Properties, Property, WithNamespace};
-use crate::package::spine::{Spine, SpineReference};
-use crate::package::Package;
-use crate::utils::invert;
-use minidom::Element;
 use std::marker::PhantomData;
 use std::str::FromStr;
+
+use minidom::Element;
 use thiserror::Error;
 use url::Url;
+
+use crate::package::manifest::{Manifest, ManifestCheckError, Resource};
+use crate::package::metadata::{Link, Meta, Metadata, MetadataCheckError, MetadataElement, Refines};
+use crate::package::Package;
+use crate::package::prefix::{DC, Prefixes, PrefixesStack};
+use crate::package::property::{Properties, Property, WithNamespace};
+use crate::package::spine::{Spine, SpineReference};
+use crate::utils::invert;
 
 #[derive(Debug, Error)]
 pub enum PackageError {
@@ -33,7 +35,7 @@ pub enum PackageError {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct ParseOptions {
+pub struct PackageParseOptions {
     /// base url of the package document.
     ///
     /// every url in the package document will be resolved against this url.
@@ -50,7 +52,7 @@ pub struct ParseState {
 #[derive(Debug)]
 pub struct PackageParser {
     /// parse options
-    pub options: ParseOptions,
+    pub options: PackageParseOptions,
     pub parse_state: ParseState,
 
     _private: PhantomData<()>,
@@ -58,7 +60,7 @@ pub struct PackageParser {
 
 
 impl PackageParser {
-    pub fn new(options: ParseOptions) -> Self {
+    pub fn new(options: PackageParseOptions) -> Self {
         PackageParser {
             options,
             parse_state: ParseState { prefixes_stack: PrefixesStack::default() },

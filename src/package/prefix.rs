@@ -1,13 +1,12 @@
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
-use once_cell::sync::Lazy;
 
+use once_cell::sync::Lazy;
 
 /// A map of prefixes to namespaces.
 ///
 /// This trait is used to get the namespace URI for a given prefix.
 pub trait PrefixMap {
-
     /// Get the namespace URI for a given prefix.
     ///
     /// # Arguments
@@ -45,7 +44,6 @@ pub trait PrefixMap {
 /// [EPUB 3.3 SPEC reserved-prefixes](https://www.w3.org/TR/epub-33/#sec-reserved-prefixes)
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub struct Prefix {
-
     /// The name of the prefix.
     ///
     /// `None` represents the default namespace.
@@ -148,7 +146,6 @@ impl PrefixMap for Prefixes {
 }
 
 impl Prefixes {
-
     /// Create a new Prefixes form a map of prefixes to namespaces.
     pub fn new(prefixes: PrefixesInner) -> Self {
         Prefixes(prefixes)
@@ -230,7 +227,6 @@ impl PrefixesStack {
 }
 
 impl PrefixMap for PrefixesStack {
-
     /// Get the namespace URI for a given prefix.
     ///
     /// It will find from the top of the stack to the bottom to see if the Prefixes has been pushed before.

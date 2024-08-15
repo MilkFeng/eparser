@@ -47,7 +47,6 @@ impl Display for MediaType {
 }
 
 impl MediaType {
-
     /// Create a new media type
     pub fn new(media_type: &str) -> Self {
         MediaType(media_type.to_string())
@@ -62,8 +61,9 @@ impl MediaType {
 
 /// Core media types
 pub mod media_types {
-    use crate::package::media_type::MediaType;
     use once_cell::sync::Lazy;
+
+    use crate::package::media_type::MediaType;
 
     // Core media types
     // images
