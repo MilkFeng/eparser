@@ -1,13 +1,12 @@
 use crate::package::manifest::{Manifest, ManifestCheckError, Resource};
 use crate::package::metadata::{Link, Meta, Metadata, MetadataCheckError, MetadataElement, Refines};
-use crate::package::prefix::{Prefix, Prefixes, PrefixesStack, DC};
+use crate::package::prefix::{Prefixes, PrefixesStack, DC};
 use crate::package::property::{Properties, Property, WithNamespace};
 use crate::package::spine::{Spine, SpineReference};
 use crate::package::Package;
 use crate::utils::invert;
 use minidom::Element;
 use std::marker::PhantomData;
-use std::ops::Deref;
 use std::str::FromStr;
 use thiserror::Error;
 use url::Url;
@@ -58,32 +57,6 @@ pub struct PackageParser {
 }
 
 
-struct PopOnDrop<'a, T> {
-    stack: &'a mut Vec<T>,
-}
-
-impl<'a, T> Drop for PopOnDrop<'a, T> {
-    fn drop(&mut self) {
-        self.stack.pop();
-    }
-}
-
-impl<'a, T> PopOnDrop<'a, T> {
-    unsafe fn new(stack: *const Vec<T>) -> Self {
-        // immutable borrow to mutable borrow
-        let stack = unsafe { &mut *(stack as *mut _) };
-        PopOnDrop { stack }
-    }
-
-    unsafe fn new_push(stack: *const Vec<T>, value: T) -> Self {
-        // immutable borrow to mutable borrow
-        let stack: &mut Vec<T> = unsafe { &mut *(stack as *mut _) };
-        stack.push(value);
-        PopOnDrop { stack }
-    }
-}
-
-
 impl PackageParser {
     pub fn new(options: ParseOptions) -> Self {
         PackageParser {
@@ -103,7 +76,7 @@ impl PackageParser {
 
         let root = Element::from_reader_with_prefixes(
             str.as_bytes(),
-            self.options.reserved_prefixes.clone().0,
+            self.options.reserved_prefixes.inner().clone(),
         ).map_err(PackageError::ParseError)?;
 
         if root.name() != "package" {
@@ -115,16 +88,14 @@ impl PackageParser {
         let prefixes = package_elem.prefixes
             .declared_prefixes()
             .clone();
-        let prefixes = Prefixes::new(prefixes);
+        self.parse_state.prefixes_stack.push(Prefixes::new(prefixes));
 
-        // This ensures pop() is called at the end of this scope
-        let _guard = unsafe {
-            PopOnDrop::new_push(
-                self.parse_state.prefixes_stack.deref() as *const _,
-                prefixes,
-            )
-        };
+        let res = self.parse_package(&package_elem);
+        self.parse_state.prefixes_stack.pop();
+        res
+    }
 
+    fn parse_package(&mut self, package_elem: &Element) -> Result<Package, PackageError> {
         // get unique-identifier
         let unique_identifier_ref = parse_attr_some::<String>(&package_elem, "unique-identifier")?;
 
@@ -174,73 +145,79 @@ impl PackageParser {
         self.parse_state.prefixes_stack.push(Prefixes::new(metadata_prefixes));
 
         for elem in metadata_elem.children() {
-            println!("elem: {:?}", elem);
-
             let elem_prefixes = elem.prefixes.declared_prefixes().clone();
+            self.parse_state.prefixes_stack.push(Prefixes::new(elem_prefixes));
 
-            // This ensures pop() is called at the end of this scope
-            let _guard = unsafe {
-                PopOnDrop::new_push(
-                    self.parse_state.prefixes_stack.deref() as *const _,
-                    Prefixes::new(elem_prefixes),
-                )
-            };
-
-            match elem.name() {
-                // meta element
-                "meta" => {
-                    let id = parse_attr(elem, "id")?;
-                    let lang = parse_attr(elem, "xml:lang")?;
-                    let dir = parse_attr(elem, "dir")?;
-                    let property = parse_attr_some_fn(elem, "property", |s| Property::from_str(s, &self.parse_state.prefixes_stack))?;
-                    let refines = parse_attr_fn(
-                        elem, "refines",
-                        |s| Refines::from_relative_url(s, &self.options.base_url),
-                    )?;
-                    let scheme = parse_attr_fn(elem, "scheme", |s| Property::from_str(s, &self.parse_state.prefixes_stack))?;
-                    let value = elem.text();
-
-                    metas.push(Meta { id, lang, dir, property, refines, scheme, value });
-                }
-
-                // link element
-                "link" => {
-                    let id = parse_attr(elem, "id")?;
-                    let href = parse_attr_some_fn(elem, "href", |s| self.options.base_url.join(s))?;
-                    let hreflang = parse_attr(elem, "hreflang")?;
-                    let rel = parse_attr_some_fn(elem, "rel", |s| Properties::from_str(s, &self.parse_state.prefixes_stack))?;
-                    let media_type = parse_attr(elem, "media-type")?;
-                    let property = parse_attr_fn(elem, "properties", |s| Property::from_str(s, &self.parse_state.prefixes_stack))?;
-                    let refines = parse_attr_fn(
-                        elem, "refines",
-                        |s| Refines::from_relative_url(s, &self.options.base_url),
-                    )?;
-                    let value = elem.text();
-
-                    links.push(Link { id, href, rel, hreflang, media_type, property, refines, value });
-                }
-
-                // other dc: elements
-                _ => {
-                    if elem.ns() == DC.uri {
-                        let id = parse_attr(elem, "id")?;
-                        let lang = parse_attr(elem, "xml:lang")?;
-                        let dir = parse_attr(elem, "dir")?;
-
-                        let tag_name = WithNamespace {
-                            ns: elem.ns(),
-                            reference: elem.name().to_string(),
-                        };
-
-                        elems.push(MetadataElement { id, lang, dir, tag_name });
-                    } else {
-                        return Err(PackageError::InvalidElementError(format!("Invalid metadata element: {}", elem.name())));
-                    }
-                }
-            }
+            let res = self.parse_metadata_elem(elem, &mut elems, &mut metas, &mut links);
+            self.parse_state.prefixes_stack.pop();
+            res?
         }
 
         Ok(Metadata::new(elems, metas, links)?)
+    }
+
+    fn parse_metadata_elem(
+        &self,
+        elem: &Element,
+        elems: &mut Vec<MetadataElement>,
+        metas: &mut Vec<Meta>,
+        links: &mut Vec<Link>,
+    ) -> Result<(), PackageError> {
+        match elem.name() {
+            // meta element
+            "meta" => {
+                let id = parse_attr(elem, "id")?;
+                let lang = parse_attr(elem, "xml:lang")?;
+                let dir = parse_attr(elem, "dir")?;
+                let property = parse_attr_some_fn(elem, "property", |s| Property::from_str(s, &self.parse_state.prefixes_stack))?;
+                let refines = parse_attr_fn(
+                    elem, "refines",
+                    |s| Refines::from_relative_url(s, &self.options.base_url),
+                )?;
+                let scheme = parse_attr_fn(elem, "scheme", |s| Property::from_str(s, &self.parse_state.prefixes_stack))?;
+                let value = elem.text();
+
+                metas.push(Meta { id, lang, dir, property, refines, scheme, value });
+                Ok(())
+            }
+
+            // link element
+            "link" => {
+                let id = parse_attr(elem, "id")?;
+                let href = parse_attr_some_fn(elem, "href", |s| self.options.base_url.join(s))?;
+                let hreflang = parse_attr(elem, "hreflang")?;
+                let rel = parse_attr_some_fn(elem, "rel", |s| Properties::from_str(s, &self.parse_state.prefixes_stack))?;
+                let media_type = parse_attr(elem, "media-type")?;
+                let property = parse_attr_fn(elem, "properties", |s| Property::from_str(s, &self.parse_state.prefixes_stack))?;
+                let refines = parse_attr_fn(
+                    elem, "refines",
+                    |s| Refines::from_relative_url(s, &self.options.base_url),
+                )?;
+                let value = elem.text();
+
+                links.push(Link { id, href, rel, hreflang, media_type, property, refines, value });
+                Ok(())
+            }
+
+            // other dc: elements
+            _ => {
+                if elem.ns() == DC.uri {
+                    let id = parse_attr(elem, "id")?;
+                    let lang = parse_attr(elem, "xml:lang")?;
+                    let dir = parse_attr(elem, "dir")?;
+
+                    let tag_name = WithNamespace {
+                        ns: elem.ns(),
+                        reference: elem.name().to_string(),
+                    };
+
+                    elems.push(MetadataElement { id, lang, dir, tag_name });
+                    Ok(())
+                } else {
+                    Err(PackageError::InvalidElementError(format!("Invalid metadata element: {}", elem.name())))
+                }
+            }
+        }
     }
 
     fn parse_manifest(&mut self, manifest_elem: &Element) -> Result<Manifest, PackageError> {
@@ -248,31 +225,30 @@ impl PackageParser {
         let resources = manifest_elem.children()
             .map(|elem| {
                 let elem_prefixes = elem.prefixes.declared_prefixes().clone();
+                self.parse_state.prefixes_stack.push(Prefixes::new(elem_prefixes));
 
-                // This ensures pop() is called at the end of this scope
-                let _guard = unsafe {
-                    PopOnDrop::new_push(
-                        self.parse_state.prefixes_stack.deref() as *const _,
-                        Prefixes::new(elem_prefixes),
-                    )
-                };
-
-                if elem.name() != "item" {
-                    return Err(PackageError::InvalidElementError("Invalid manifest item".to_string()));
-                }
-
-                let id = parse_attr_some(elem, "id")?;
-                let href = parse_attr_some_fn(elem, "href", |s| self.options.base_url.join(s))?;
-                let media_type = parse_attr_some(elem, "media-type")?;
-                let properties = parse_attr_fn(elem, "properties", |s| Properties::from_str(s, &self.parse_state.prefixes_stack))?;
-                let fallback = parse_attr(elem, "fallback")?;
-                let media_overlay = parse_attr(elem, "media-overlay")?;
-
-                Ok(Resource { id, href, media_type, properties, fallback, media_overlay })
+                let res = self.parse_manifest_elem(elem);
+                self.parse_state.prefixes_stack.pop();
+                res
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Manifest::new(id, resources)?)
+    }
+
+    fn parse_manifest_elem(&self, elem: &Element) -> Result<Resource, PackageError> {
+        if elem.name() != "item" {
+            return Err(PackageError::InvalidElementError("Invalid manifest item".to_string()));
+        }
+
+        let id = parse_attr_some(elem, "id")?;
+        let href = parse_attr_some_fn(elem, "href", |s| self.options.base_url.join(s))?;
+        let media_type = parse_attr_some(elem, "media-type")?;
+        let properties = parse_attr_fn(elem, "properties", |s| Properties::from_str(s, &self.parse_state.prefixes_stack))?;
+        let fallback = parse_attr(elem, "fallback")?;
+        let media_overlay = parse_attr(elem, "media-overlay")?;
+
+        Ok(Resource { id, href, media_type, properties, fallback, media_overlay })
     }
 
     fn parse_spine(&mut self, spine_elem: &Element) -> Result<Spine, PackageError> {
@@ -281,27 +257,27 @@ impl PackageParser {
         let refs = spine_elem.children()
             .map(|elem| {
                 let elem_prefixes = elem.prefixes.declared_prefixes().clone();
+                self.parse_state.prefixes_stack.push(Prefixes::new(elem_prefixes));
 
-                // This ensures pop() is called at the end of this scope
-                let _guard = unsafe {
-                    PopOnDrop::new_push(
-                        self.parse_state.prefixes_stack.deref() as *const _,
-                        Prefixes::new(elem_prefixes),
-                    )
-                };
-
-                if elem.name() != "itemref" {
-                    return Err(PackageError::InvalidElementError("Invalid spine itemref".to_string()));
-                }
-
-                let id = parse_attr_some(elem, "idref")?;
-                let linear = parse_attr(elem, "linear")?;
-
-                Ok(SpineReference { id, linear })
+                let res = self.parse_spine_elem(elem);
+                self.parse_state.prefixes_stack.pop();
+                res
             })
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Spine { id, dir, refs })
+    }
+
+
+    fn parse_spine_elem(&self, elem: &Element) -> Result<SpineReference, PackageError> {
+        if elem.name() != "itemref" {
+            return Err(PackageError::InvalidElementError("Invalid spine itemref".to_string()));
+        }
+
+        let id = parse_attr_some(elem, "idref")?;
+        let linear = parse_attr(elem, "linear")?;
+
+        Ok(SpineReference { id, linear })
     }
 }
 

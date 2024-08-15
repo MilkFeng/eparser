@@ -12,9 +12,11 @@ mod test {
     use zip::ZipArchive;
 
     #[test]
-    fn test() {
-        let mut zip = ZipArchive::new(File::open("res/example.epub").unwrap()).unwrap();
+    fn test_parse() {
+        let file = File::open("res/example.epub").unwrap();
+        let mut zip = ZipArchive::new(file).unwrap();
         let files = read_zip(&mut zip);
+        println!("{:?}", files);
 
         let book = parse_book(files).unwrap();
         println!("{:?}", book)

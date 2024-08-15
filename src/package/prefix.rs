@@ -3,14 +3,55 @@ use std::ops::{Deref, DerefMut};
 use once_cell::sync::Lazy;
 
 
+/// A map of prefixes to namespaces.
+///
+/// This trait is used to get the namespace URI for a given prefix.
 pub trait PrefixMap {
+
+    /// Get the namespace URI for a given prefix.
+    ///
+    /// # Arguments
+    ///
+    /// - `prefix` - The prefix to get the namespace URI for.
+    /// If the prefix is `None`, the default namespace is returned.
+    ///
+    /// # Returns
+    ///
+    /// The namespace URI for the given prefix, or `None` if the prefix is not found.
     fn get(&self, prefix: &Option<String>) -> Option<&String>;
 }
 
 
+/// A prefix for a namespace.
+///
+/// There are a number of predefined prefixes for common namespaces:
+/// - `dc`[DC] for Dublin Core
+/// - `dcterms`[DCTERMS] for Dublin Core Terms
+/// - `a11y`[A11Y] for Accessibility Metadata
+/// - `marc`[MARC] for MARC Code Lists
+/// - `media`[MEDIA] for Media Overlays
+/// - `onix`[ONIX] for ONIX Code Lists
+/// - `rendition`[RENDITION] for Rendition Metadata
+/// - `schema`[SCHEMA] for Schema.org
+/// - `xsd`[XSD] for XML Schema
+/// - `msv`[MSV] for Magazine Structure Vocabulary
+/// - `prism`[PRISM] for PRISM Code Lists
+///
+/// The default prefix for the OPF namespace is `None`, representing the default namespace `opf`[OPF].
+///
+///
+/// # Reference
+///
+/// [EPUB 3.3 SPEC reserved-prefixes](https://www.w3.org/TR/epub-33/#sec-reserved-prefixes)
 #[derive(Debug, PartialEq, Clone, Hash, Eq)]
 pub struct Prefix {
+
+    /// The name of the prefix.
+    ///
+    /// `None` represents the default namespace.
     pub name: Option<String>,
+
+    /// The URI of the namespace.
     pub uri: String,
 }
 
@@ -59,14 +100,46 @@ pub static XSD: Lazy<Prefix> = Lazy::new(|| Prefix {
     uri: "http://www.w3.org/2001/XMLSchema#".to_string(),
 });
 
+pub static MSV: Lazy<Prefix> = Lazy::new(|| Prefix {
+    name: Some("msv".to_string()),
+    uri: "http://www.idpf.org/epub/vocab/structure/magazine/#".to_string(),
+});
+
+pub static PRISM: Lazy<Prefix> = Lazy::new(|| Prefix {
+    name: Some("prism".to_string()),
+    uri: "http://www.prismstandard.org/specifications/3.0/PRISM_CV_Spec_3.0.htm#".to_string(),
+});
+
+
 /// The default prefix for the OPF namespace.
 pub static OPF: Lazy<Prefix> = Lazy::new(|| Prefix {
     name: None,
     uri: "http://www.idpf.org/2007/opf".to_string(),
 });
 
+pub type PrefixesInner = BTreeMap<Option<String>, String>;
+
+
+/// A map of prefixes to namespaces.
 #[derive(Debug, PartialEq, Clone)]
-pub struct Prefixes(pub BTreeMap<Option<String>, String>);
+pub struct Prefixes(PrefixesInner);
+
+/// The reserved prefixes. See [Prefix]
+pub static RESERVED: Lazy<PrefixesInner> = Lazy::new(|| {
+    let mut prefixes = BTreeMap::new();
+    prefixes.insert(DC.name.clone(), DC.uri.clone());
+    prefixes.insert(DCTERMS.name.clone(), DCTERMS.uri.clone());
+    prefixes.insert(A11Y.name.clone(), A11Y.uri.clone());
+    prefixes.insert(MARC.name.clone(), MARC.uri.clone());
+    prefixes.insert(MEDIA.name.clone(), MEDIA.uri.clone());
+    prefixes.insert(ONIX.name.clone(), ONIX.uri.clone());
+    prefixes.insert(RENDITION.name.clone(), RENDITION.uri.clone());
+    prefixes.insert(SCHEMA.name.clone(), SCHEMA.uri.clone());
+    prefixes.insert(XSD.name.clone(), XSD.uri.clone());
+    prefixes.insert(MSV.name.clone(), MSV.uri.clone());
+    prefixes.insert(PRISM.name.clone(), PRISM.uri.clone());
+    prefixes
+});
 
 impl PrefixMap for Prefixes {
     fn get(&self, prefix: &Option<String>) -> Option<&String> {
@@ -75,27 +148,29 @@ impl PrefixMap for Prefixes {
 }
 
 impl Prefixes {
-    pub fn new(prefixes: BTreeMap<Option<String>, String>) -> Self {
+
+    /// Create a new Prefixes form a map of prefixes to namespaces.
+    pub fn new(prefixes: PrefixesInner) -> Self {
         Prefixes(prefixes)
     }
 
+    /// All the reserved prefixes.
+    ///
+    /// # Reference
+    ///
+    /// [EPUB 3.3 SPEC reserved-prefixes](https://www.w3.org/TR/epub-33/#sec-reserved-prefixes)
     pub fn reserved() -> Self {
-        let mut prefixes = BTreeMap::new();
-        prefixes.insert(DC.name.clone(), DC.uri.clone());
-        prefixes.insert(DCTERMS.name.clone(), DCTERMS.uri.clone());
-        prefixes.insert(A11Y.name.clone(), A11Y.uri.clone());
-        prefixes.insert(MARC.name.clone(), MARC.uri.clone());
-        prefixes.insert(MEDIA.name.clone(), MEDIA.uri.clone());
-        prefixes.insert(ONIX.name.clone(), ONIX.uri.clone());
-        prefixes.insert(RENDITION.name.clone(), RENDITION.uri.clone());
-        prefixes.insert(SCHEMA.name.clone(), SCHEMA.uri.clone());
-        prefixes.insert(XSD.name.clone(), XSD.uri.clone());
-        Prefixes(prefixes)
+        RESERVED.clone().into()
+    }
+
+    /// Get the inner map of prefixes to namespaces.
+    pub fn inner(&self) -> &PrefixesInner {
+        &self.0
     }
 }
 
 impl Deref for Prefixes {
-    type Target = BTreeMap<Option<String>, String>;
+    type Target = PrefixesInner;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -108,6 +183,21 @@ impl DerefMut for Prefixes {
     }
 }
 
+impl From<Prefixes> for BTreeMap<Option<String>, String> {
+    fn from(value: Prefixes) -> Self {
+        value.0
+    }
+}
+
+impl Into<Prefixes> for BTreeMap<Option<String>, String> {
+    fn into(self) -> Prefixes {
+        Prefixes(self)
+    }
+}
+
+/// A stack of prefixes.
+///
+/// It is used to record the prefixes declared in the XML document tree.
 #[derive(Debug, PartialEq, Clone)]
 pub struct PrefixesStack(Vec<Prefixes>);
 
@@ -133,23 +223,24 @@ impl DerefMut for PrefixesStack {
 
 
 impl PrefixesStack {
-
+    /// Create a new PrefixesStack from a list of Prefixes.
     pub fn new(prefixes: Vec<Prefixes>) -> Self {
         PrefixesStack(prefixes)
     }
+}
 
-    pub fn get(&self, prefix: &Option<String>) -> Option<&String> {
+impl PrefixMap for PrefixesStack {
+
+    /// Get the namespace URI for a given prefix.
+    ///
+    /// It will find from the top of the stack to the bottom to see if the Prefixes has been pushed before.
+    fn get(&self, prefix: &Option<String>) -> Option<&String> {
+        // from top to bottom
         for prefixes in self.0.iter().rev() {
             if let Some(uri) = prefixes.get(prefix) {
                 return Some(uri);
             }
         }
         None
-    }
-}
-
-impl PrefixMap for PrefixesStack {
-    fn get(&self, prefix: &Option<String>) -> Option<&String> {
-        self.get(prefix)
     }
 }

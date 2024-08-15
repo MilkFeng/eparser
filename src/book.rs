@@ -1,12 +1,10 @@
 use crate::file::Files;
 use crate::oebps::{Container, ContainerError};
 use crate::package::parser::{PackageError, PackageParser, ParseOptions};
+use crate::package::prefix::Prefixes;
 use crate::package::Package;
 use std::fmt::{Debug, Display};
-use std::io::BufReader;
-use minidom::Element;
 use thiserror::Error;
-use crate::package::prefix::Prefixes;
 
 #[derive(Debug)]
 pub struct EpubBook {
