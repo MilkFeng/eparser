@@ -1,6 +1,9 @@
+use std::marker::PhantomData;
 use manifest::Manifest;
 use metadata::Metadata;
 use spine::Spine;
+use crate::package::manifest::Resource;
+use crate::package::spine::SpineReference;
 
 pub mod manifest;
 pub mod property;
@@ -34,4 +37,14 @@ pub struct Package {
     pub prefix: Option<String>,
     pub dir: Option<String>,
     pub lang: Option<String>,
+}
+
+impl Package {
+    pub fn get_res_by_id(&self, id: &str) -> Option<&Resource> {
+        self.manifest.get_resource_by_id(id)
+    }
+
+    pub fn get_res_by_ref(&self, ref_: &SpineReference) -> Option<&Resource> {
+        self.manifest.get_resource_by_id(&ref_.id)
+    }
 }

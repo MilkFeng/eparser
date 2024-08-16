@@ -150,7 +150,8 @@ pub enum MetadataCheckError {
     #[error("The metadata section MUST contain exactly at least one {0} element.")]
     MissingElementError(String),
 
-    #[error("The metadata section MUST contain exactly one {0} property containing the last modification date.")]
+    #[error("The metadata section MUST contain exactly one {0} property containing the last modification date."
+    )]
     MissingLastModifiedError(String),
 
     #[error("The last modified date is invalid. {0}")]
@@ -207,7 +208,7 @@ impl Metadata {
         links: Vec<Link>,
     ) -> Result<Self, MetadataCheckError> {
         let elems = {
-            let mut elems_map= BTreeMap::new();
+            let mut elems_map = BTreeMap::new();
 
             // group metadata elements by property
             for elem in elems {
@@ -221,8 +222,10 @@ impl Metadata {
 
         // check dublin core metadata element set
         {
-
-            fn check(elems_map: &BTreeMap<WithNamespace, Vec<MetadataElement>>, tag_name: &WithNamespace) -> Result<(), MetadataCheckError> {
+            fn check(
+                elems_map: &BTreeMap<WithNamespace, Vec<MetadataElement>>,
+                tag_name: &WithNamespace,
+            ) -> Result<(), MetadataCheckError> {
                 let elems = elems_map.get(&tag_name);
                 if elems.is_none() || elems.unwrap().is_empty() {
                     Err(MetadataCheckError::MissingElementError(tag_name.reference.clone()))
