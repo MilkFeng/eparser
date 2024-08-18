@@ -10,6 +10,10 @@ pub struct SpineReference {
     pub linear: Option<bool>,
 }
 
+
+/// The spine element defines the default reading order of the publication.
+///
+/// It is made up of a list of spine references that point to resources in the manifest.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Spine {
     /// The unique identifier of the spine element.

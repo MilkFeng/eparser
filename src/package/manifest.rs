@@ -6,8 +6,10 @@ use once_cell::sync::Lazy;
 use thiserror::Error;
 use url::Url;
 
+use crate::file::Files;
 use crate::package::media_type::MediaType;
-use crate::package::prefix::OPF;
+use crate::package::nav::{Nav, parse_nav};
+use crate::package::prefix::prefixes::*;
 use crate::package::property::{Properties, Property};
 
 /// A Publication Resource.
@@ -43,6 +45,19 @@ pub struct Resource {
     /// The properties attribute is a space-separated list of property values.
     pub properties: Option<Properties>,
 }
+
+
+pub trait ResourceMap {
+    /// Get a resource content by [Resource].
+    fn get_by_res(&mut self, res: &Resource) -> Option<&Vec<u8>>;
+}
+
+impl<F: Files> ResourceMap for F {
+    fn get_by_res(&mut self, res: &Resource) -> Option<&Vec<u8>> {
+        self.get(&res.href)
+    }
+}
+
 
 #[derive(Debug, Error)]
 pub enum ManifestCheckError {

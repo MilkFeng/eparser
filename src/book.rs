@@ -1,43 +1,38 @@
 use std::fmt::{Debug, Display};
+use std::ops::{Deref, DerefMut};
 
 use thiserror::Error;
-use url::Url;
 
 use crate::file::Files;
 use crate::oebps::{Container, ContainerError};
-use crate::package::manifest::Resource;
 use crate::package::Package;
 use crate::package::parser::{PackageError, PackageParseOptions, PackageParser};
 use crate::package::prefix::Prefixes;
 
 #[derive(Debug)]
-pub struct EpubBook<F: Files> {
-    /// All the packages in the book.
-    packages: Vec<Package>,
+pub struct EpubBook(Vec<Package>);
 
-    /// All the files in the book.
-    files: F,
-}
-
-impl<F: Files> EpubBook<F> {
+/// An EPUB book. It is A collection of packages.
+///
+/// This is the main entry point for working with EPUB books.
+impl EpubBook {
     /// Get all the packages in the book.
     pub fn packages(&self) -> &Vec<Package> {
-        &self.packages
+        &self.0
     }
+}
 
-    /// Get all the files in the book.
-    pub fn files(&self) -> &F {
-        &self.files
+impl Deref for EpubBook {
+    type Target = Vec<Package>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
+}
 
-    /// Get a package by its index.
-    pub fn get_file_by_resource(&mut self, resource: &Resource) -> Option<&Vec<u8>> {
-        self.get_file_by_url(&resource.href)
-    }
-
-    /// Get a file by its URL.
-    pub fn get_file_by_url(&mut self, url: &Url) -> Option<&Vec<u8>> {
-        self.files.get(url)
+impl DerefMut for EpubBook {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -56,15 +51,15 @@ pub enum ParseBookError {
     #[error("Failed to parse container.xml file")]
     ParseContainerError(#[from] ContainerError),
 
-    #[error("Failed to parse UTF-8")]
-    Utf8Error(#[from] std::str::Utf8Error),
-
     #[error("Failed to parse package")]
     ParsePackageError(#[from] PackageError),
+
+    #[error("Failed to parse UTF-8")]
+    Utf8Error(#[from] std::str::Utf8Error),
 }
 
 /// Parse an EPUB book.
-pub fn parse_book<F: Files>(mut files: F) -> Result<EpubBook<F>, ParseBookError> {
+pub fn parse_book<F: Files>(files: &mut F) -> Result<EpubBook, ParseBookError> {
     let container = {
         let url = files.root_url()
             .join("META-INF/container.xml")
@@ -100,5 +95,5 @@ pub fn parse_book<F: Files>(mut files: F) -> Result<EpubBook<F>, ParseBookError>
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(EpubBook { packages, files })
+    Ok(EpubBook(packages))
 }

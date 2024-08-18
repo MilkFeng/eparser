@@ -8,7 +8,7 @@ use thiserror::Error;
 use url::{ParseError, Url};
 
 use crate::package::media_type::MediaType;
-use crate::package::prefix::{DC, DCTERMS};
+use crate::package::prefix::prefixes::*;
 use crate::package::property::{Properties, Property, WithNamespace};
 
 /// The basic metadata element of an EPUB.

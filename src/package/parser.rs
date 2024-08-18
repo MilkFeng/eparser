@@ -8,7 +8,8 @@ use url::Url;
 use crate::package::manifest::{Manifest, ManifestCheckError, Resource};
 use crate::package::metadata::{Link, Meta, Metadata, MetadataCheckError, MetadataElement, Refines};
 use crate::package::Package;
-use crate::package::prefix::{DC, Prefixes, PrefixesStack};
+use crate::package::prefix::{Prefixes, PrefixesStack};
+use crate::package::prefix::prefixes::*;
 use crate::package::property::{Properties, Property, WithNamespace};
 use crate::package::spine::{Spine, SpineReference};
 use crate::utils::invert;
@@ -60,6 +61,7 @@ pub struct PackageParser {
 
 
 impl PackageParser {
+    /// Create a new package parser.
     pub fn new(options: PackageParseOptions) -> Self {
         PackageParser {
             options,
@@ -68,10 +70,16 @@ impl PackageParser {
         }
     }
 
+    /// Clear the parser state.
     pub fn clear(&mut self) {
         self.parse_state.prefixes_stack.clear();
     }
 
+    /// Parse a package document.
+    ///
+    /// # Arguments
+    ///
+    /// - `str` - A string slice that holds the package document.
     pub fn parse(&mut self, str: &str) -> Result<Package, PackageError> {
         self.clear();
         self.parse_state.prefixes_stack.push(self.options.reserved_prefixes.clone());
@@ -97,6 +105,7 @@ impl PackageParser {
         res
     }
 
+    /// Parse a package element to [Package].
     fn parse_package(&mut self, package_elem: &Element) -> Result<Package, PackageError> {
         // get unique-identifier
         let unique_identifier_ref = parse_attr_some::<String>(&package_elem, "unique-identifier")?;
@@ -138,6 +147,7 @@ impl PackageParser {
         Ok(Package { unique_identifier_ref, version, prefix, dir, id, lang, metadata, manifest, spine })
     }
 
+    /// Parse a metadata element to [Metadata].
     fn parse_metadata(&mut self, metadata_elem: &Element) -> Result<Metadata, PackageError> {
         let mut elems = Vec::new();
         let mut metas = Vec::new();
@@ -158,6 +168,8 @@ impl PackageParser {
         Ok(Metadata::new(elems, metas, links)?)
     }
 
+    /// Parse a metadata element to [MetadataElement], [Meta] or [Link].
+    /// And add them to the corresponding vector.
     fn parse_metadata_elem(
         &self,
         elem: &Element,
@@ -222,6 +234,7 @@ impl PackageParser {
         }
     }
 
+    /// Parse a manifest element to [Manifest].
     fn parse_manifest(&mut self, manifest_elem: &Element) -> Result<Manifest, PackageError> {
         let id = manifest_elem.attr("id");
         let resources = manifest_elem.children()
@@ -238,6 +251,7 @@ impl PackageParser {
         Ok(Manifest::new(id, resources)?)
     }
 
+    /// Parse a manifest item element to [Resource].
     fn parse_manifest_elem(&self, elem: &Element) -> Result<Resource, PackageError> {
         if elem.name() != "item" {
             return Err(PackageError::InvalidElementError("Invalid manifest item".to_string()));
@@ -253,6 +267,7 @@ impl PackageParser {
         Ok(Resource { id, href, media_type, properties, fallback, media_overlay })
     }
 
+    /// Parse a spine element to [Spine].
     fn parse_spine(&mut self, spine_elem: &Element) -> Result<Spine, PackageError> {
         let id = parse_attr(spine_elem, "id")?;
         let dir = parse_attr(spine_elem, "page-progression-direction")?;
@@ -270,7 +285,7 @@ impl PackageParser {
         Ok(Spine { id, dir, refs })
     }
 
-
+    /// Parse a spine itemref element to [SpineReference].
     fn parse_spine_elem(&self, elem: &Element) -> Result<SpineReference, PackageError> {
         if elem.name() != "itemref" {
             return Err(PackageError::InvalidElementError("Invalid spine itemref".to_string()));
@@ -282,6 +297,7 @@ impl PackageParser {
         Ok(SpineReference { id, linear })
     }
 }
+
 
 fn parse_attr<T>(elem: &Element, name: &str) -> Result<Option<T>, PackageError>
 where

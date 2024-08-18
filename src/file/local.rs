@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::fs::{File, read_dir};
 use std::io::{Read, Seek};
-use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
@@ -24,21 +23,12 @@ impl Files for LocalFiles {
     }
 
     fn get(&mut self, url: &Url) -> Option<&Vec<u8>> {
-        self.files.get(url)
-    }
-}
-
-impl Deref for LocalFiles {
-    type Target = BTreeMap<Url, Vec<u8>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.files
-    }
-}
-
-impl DerefMut for LocalFiles {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.files
+        // remove the fragment from the URL
+        return if url.path_segments().is_none() {
+            self.files.get(url)
+        } else {
+            self.files.get(&url.join("").unwrap())
+        };
     }
 }
 
@@ -109,7 +99,13 @@ impl<R: Read> Files for LazyLocalFiles<R> {
 
     fn get(&mut self, url: &Url) -> Option<&Vec<u8>> {
         let LazyLocalFiles { files, .. } = self;
-        let lazy_file = files.get_mut(url);
+
+        // remove the fragment from the URL
+        let lazy_file = if url.path_segments().is_none() {
+            files.get_mut(url)
+        } else {
+            files.get_mut(&url.join("").unwrap())
+        };
 
         if lazy_file.is_none() {
             return None;
@@ -118,28 +114,21 @@ impl<R: Read> Files for LazyLocalFiles<R> {
         let lazy_file = lazy_file.unwrap();
 
         return if let LazyFile::Loaded(bytes) = lazy_file {
+            // if the file is already loaded, return the bytes
             Some(bytes)
         } else {
+            // if not loaded, load and store the bytes
+            // get file
             let file = lazy_file.file_mut().unwrap();
+
+            // read the file into memory
             let mut content = Vec::new();
             file.read_to_end(&mut content).unwrap();
             *lazy_file = LazyFile::Loaded(content);
+
+            // return the bytes
             Some(lazy_file.bytes().unwrap())
-        }
-    }
-}
-
-impl<R: Read> Deref for LazyLocalFiles<R> {
-    type Target = BTreeMap<Url, LazyFile<R>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.files
-    }
-}
-
-impl<R: Read> DerefMut for LazyLocalFiles<R> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.files
+        };
     }
 }
 
@@ -152,6 +141,7 @@ pub enum LocalFilesError {
     Zip(#[from] ZipError),
 }
 
+/// Read files from a ZIP archive.
 pub fn read_from_zip<R: Read + Seek>(zip: &mut ZipArchive<R>) -> Result<LocalFiles, LocalFilesError> {
     let mut files = LocalFiles::empty();
     for i in 0..zip.len() {
@@ -160,15 +150,17 @@ pub fn read_from_zip<R: Read + Seek>(zip: &mut ZipArchive<R>) -> Result<LocalFil
         let url_str = format!("epub:/{}", file.name());
         let url = Url::options().parse(&url_str).unwrap();
         file.read_to_end(&mut content).unwrap();
-        files.insert(url, content);
+        files.files.insert(url, content);
     }
     Ok(files)
 }
 
+/// Read files from a Reader, which targets a ZIP archive.
 pub fn read_from_reader<R: Read + Seek>(reader: R) -> Result<LocalFiles, LocalFilesError> {
     Ok(read_from_zip(&mut ZipArchive::new(reader)?)?)
 }
 
+/// Recursively read files from a directory.
 fn recurse_files(path: impl AsRef<Path>) -> std::io::Result<Vec<PathBuf>> {
     let mut buf = vec![];
     let entries = read_dir(path)?;
@@ -190,6 +182,9 @@ fn recurse_files(path: impl AsRef<Path>) -> std::io::Result<Vec<PathBuf>> {
     Ok(buf)
 }
 
+/// Read files from a directory.
+///
+/// It will recursively read all files from the directory.
 pub fn read_from_dir(path: impl AsRef<Path>) -> Result<LocalFiles, LocalFilesError> {
     let mut files = LocalFiles::empty();
     let paths = recurse_files(&path)?;
@@ -203,6 +198,10 @@ pub fn read_from_dir(path: impl AsRef<Path>) -> Result<LocalFiles, LocalFilesErr
     Ok(files)
 }
 
+/// Read files from a directory lazily.
+///
+/// It will recursively get all files' metadata from the directory.
+/// When use `get` method, it will read the file into memory.
 pub fn lazy_read_from_dir(path: impl AsRef<Path>) -> Result<LazyLocalFiles<File>, LocalFilesError> {
     let mut files = LazyLocalFiles {
         root_url: Url::parse("epub:/").unwrap(),
@@ -218,6 +217,7 @@ pub fn lazy_read_from_dir(path: impl AsRef<Path>) -> Result<LazyLocalFiles<File>
     Ok(files)
 }
 
+/// Read files from a ZIP file.
 pub fn read_from_file(file: File) -> Result<LocalFiles, LocalFilesError> {
     Ok(read_from_zip(&mut ZipArchive::new(file)?)?)
 }

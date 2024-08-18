@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
 use once_cell::sync::Lazy;
+use crate::package::prefix::prefixes::*;
 
 /// A map of prefixes to namespaces.
 ///
@@ -53,67 +54,73 @@ pub struct Prefix {
     pub uri: String,
 }
 
-pub static DC: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("dc".to_string()),
-    uri: "http://purl.org/dc/elements/1.1/".to_string(),
-});
+pub mod prefixes {
+    use once_cell::sync::Lazy;
 
-pub static DCTERMS: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("dcterms".to_string()),
-    uri: "http://purl.org/dc/terms/".to_string(),
-});
+    use crate::package::prefix::Prefix;
 
-pub static A11Y: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("a11y".to_string()),
-    uri: "http://www.idpf.org/epub/vocab/package/a11y/#".to_string(),
-});
+    pub static DC: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("dc".to_string()),
+        uri: "http://purl.org/dc/elements/1.1/".to_string(),
+    });
 
-pub static MARC: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("marc".to_string()),
-    uri: "http://id.loc.gov/vocabulary/".to_string(),
-});
+    pub static DCTERMS: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("dcterms".to_string()),
+        uri: "http://purl.org/dc/terms/".to_string(),
+    });
 
-pub static MEDIA: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("media".to_string()),
-    uri: "http://www.idpf.org/epub/vocab/overlays/#".to_string(),
-});
+    pub static A11Y: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("a11y".to_string()),
+        uri: "http://www.idpf.org/epub/vocab/package/a11y/#".to_string(),
+    });
 
-pub static ONIX: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("onix".to_string()),
-    uri: "http://www.editeur.org/ONIX/book/codelists/current.html#".to_string(),
-});
+    pub static MARC: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("marc".to_string()),
+        uri: "http://id.loc.gov/vocabulary/".to_string(),
+    });
 
-pub static RENDITION: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("rendition".to_string()),
-    uri: "http://www.idpf.org/vocab/rendition/#".to_string(),
-});
+    pub static MEDIA: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("media".to_string()),
+        uri: "http://www.idpf.org/epub/vocab/overlays/#".to_string(),
+    });
 
-pub static SCHEMA: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("schema".to_string()),
-    uri: "http://schema.org/".to_string(),
-});
+    pub static ONIX: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("onix".to_string()),
+        uri: "http://www.editeur.org/ONIX/book/codelists/current.html#".to_string(),
+    });
 
-pub static XSD: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("xsd".to_string()),
-    uri: "http://www.w3.org/2001/XMLSchema#".to_string(),
-});
+    pub static RENDITION: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("rendition".to_string()),
+        uri: "http://www.idpf.org/vocab/rendition/#".to_string(),
+    });
 
-pub static MSV: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("msv".to_string()),
-    uri: "http://www.idpf.org/epub/vocab/structure/magazine/#".to_string(),
-});
+    pub static SCHEMA: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("schema".to_string()),
+        uri: "http://schema.org/".to_string(),
+    });
 
-pub static PRISM: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: Some("prism".to_string()),
-    uri: "http://www.prismstandard.org/specifications/3.0/PRISM_CV_Spec_3.0.htm#".to_string(),
-});
+    pub static XSD: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("xsd".to_string()),
+        uri: "http://www.w3.org/2001/XMLSchema#".to_string(),
+    });
+
+    pub static MSV: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("msv".to_string()),
+        uri: "http://www.idpf.org/epub/vocab/structure/magazine/#".to_string(),
+    });
+
+    pub static PRISM: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: Some("prism".to_string()),
+        uri: "http://www.prismstandard.org/specifications/3.0/PRISM_CV_Spec_3.0.htm#".to_string(),
+    });
 
 
-/// The default prefix for the OPF namespace.
-pub static OPF: Lazy<Prefix> = Lazy::new(|| Prefix {
-    name: None,
-    uri: "http://www.idpf.org/2007/opf".to_string(),
-});
+    /// The default prefix for the OPF namespace.
+    pub static OPF: Lazy<Prefix> = Lazy::new(|| Prefix {
+        name: None,
+        uri: "http://www.idpf.org/2007/opf".to_string(),
+    });
+}
 
 pub type PrefixesInner = BTreeMap<Option<String>, String>;
 
