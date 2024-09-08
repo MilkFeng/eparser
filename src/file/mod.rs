@@ -9,9 +9,18 @@ pub trait Files {
     fn root_url(&self) -> &Url;
 
     /// Get the content of a file by its URL.
-    fn get(&mut self, url: &Url) -> Option<&Vec<u8>>;
+    async fn get(&mut self, url: &Url) -> Option<&Vec<u8>>;
 }
 
-#[cfg(feature = "local")]
-pub mod local;
+#[cfg(not(target_arch = "wasm32"))]
+mod local;
+#[cfg(not(target_arch = "wasm32"))]
+pub use local::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+mod remote_epub;
+#[cfg(not(target_arch = "wasm32"))]
+pub use remote_epub::*;
+
 mod remote;
+pub use remote::*;

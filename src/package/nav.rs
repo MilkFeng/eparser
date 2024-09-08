@@ -1,7 +1,6 @@
 use minidom::Element;
 use thiserror::Error;
 use url::Url;
-use crate::oebps::ContainerError;
 
 /// The type of the nav.
 pub enum NavType {
@@ -84,16 +83,13 @@ pub enum NavParseError {
 /// </nav>
 /// ```
 pub fn parse_nav(str: &str) -> Result<Nav, NavParseError> {
-    let root_elem = str.parse::<Element>()
-        .map_err(ContainerError::ParseError)?;
+    let root_elem = str.parse::<Element>()?;
 
     if root_elem.name() != "nav" {
         return Err(NavParseError::InvalidRoot(root_elem.name().to_string()));
     }
 
-    let ty = root_elem.attr("epub:type")
-        .map(|s| s.to_string());
-
+    let ty = root_elem.attr("epub:type").map(|s| s.to_string());
 
     unimplemented!()
 }

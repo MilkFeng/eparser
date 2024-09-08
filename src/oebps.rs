@@ -48,52 +48,26 @@ pub enum ContainerError {
     ParseError(#[from] minidom::Error),
 }
 
-impl FromStr for Container {
-    type Err = ContainerError;
-
-    /// Parse the container.xml file.
-    ///
-    /// Note that if the `full-path` attribute of the `rootfile` element starts with `OPS/`, it will be replaced with `OEBPS/`.
-    ///
-    /// The structure of the container.xml file is as follows:
-    ///
-    /// ```xml
-    /// <?xml version="1.0" encoding="UTF-8"?>
-    /// <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-    ///     <rootfiles>
-    ///         <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
-    ///    </rootfiles>
-    /// </container>
-    /// ```
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_container(s)
-    }
-}
-
-
 /// Parse the container.xml file.
-fn parse_container(str: &str) -> Result<Container, ContainerError> {
-    let rootfiles = str.parse::<Element>()
+pub fn parse_container(str: &str, root_path: &Url) -> Result<Container, ContainerError> {
+    let rootfiles = str
+        .parse::<Element>()
         .map_err(ContainerError::ParseError)?
-
         // container
         .children()
         .find(|n| n.name() == "rootfiles")
         .ok_or(ContainerError::MissingRootfiles)?
-
         // container -> rootfiles
         .children()
         .filter(|n| n.name() == "rootfile")
-
         // container -> rootfiles -> rootfile
         .map(|n| {
-            let full_path_str = n.attr("full-path")
-                .ok_or(ContainerError::MissingFullPath)?;
-            let media_type_str = n.attr("media-type")
+            let full_path_str = n.attr("full-path").ok_or(ContainerError::MissingFullPath)?;
+            let media_type_str = n
+                .attr("media-type")
                 .ok_or(ContainerError::MissingMediaType)?;
 
-            let full_path_url_str = format!("epub:/{}", full_path_str);
-            let full_path = Url::parse(&full_path_url_str)?;
+            let full_path = root_path.join(full_path_str)?;
 
             let media_type = MediaType::new(media_type_str);
             if &media_type != OEBPS.deref() {

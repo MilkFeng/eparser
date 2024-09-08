@@ -1,7 +1,6 @@
 use std::cmp::PartialEq;
 use std::fmt::Display;
 use std::ops::{Deref, DerefMut};
-
 use thiserror::Error;
 
 use crate::package::prefix::{Prefix, PrefixMap};
@@ -9,7 +8,6 @@ use crate::package::prefix::{Prefix, PrefixMap};
 #[derive(Debug, Error)]
 #[error("Invalid namespace: {0:?}")]
 pub struct NamespaceError(Option<String>);
-
 
 /// A value with a namespace.
 ///
@@ -70,8 +68,13 @@ impl WithNamespace {
     /// ```
     pub fn from_str(s: &str, prefixes: &impl PrefixMap) -> Result<Self, NamespaceError> {
         let split: Vec<&str> = s.split(':').collect();
-        let prefix = if split.len() == 2 { Some(split[0].to_string()) } else { None };
-        let namespace = prefixes.get(&prefix)
+        let prefix = if split.len() == 2 {
+            Some(split[0].to_string())
+        } else {
+            None
+        };
+        let namespace = prefixes
+            .get(&prefix)
             .ok_or(NamespaceError(prefix.clone()))?
             .clone();
         let reference = split.last().unwrap().to_string();
@@ -81,7 +84,6 @@ impl WithNamespace {
         })
     }
 }
-
 
 /// The property data type is a compact means of expressing a URL and
 /// consists of an OPTIONAL prefix separated from a reference by a colon.
@@ -109,7 +111,6 @@ impl DerefMut for Property {
     }
 }
 
-
 impl Property {
     /// Create a new Property
     pub fn new(ns: String, reference: String) -> Self {
@@ -129,7 +130,6 @@ impl Property {
     }
 }
 
-
 /// A white space-separated list of property values.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Properties(Vec<Property>);
@@ -146,7 +146,8 @@ impl Properties {
     ///
     /// See [Property::from_str] for more information .
     pub fn from_str(s: &str, prefixes: &impl PrefixMap) -> Result<Self, NamespaceError> {
-        let properties = s.split_whitespace()
+        let properties = s
+            .split_whitespace()
             .map(|property| Property::from_str(property, prefixes))
             .collect::<Result<Vec<Property>, NamespaceError>>()?;
         Ok(Properties(properties))

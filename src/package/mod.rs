@@ -6,13 +6,13 @@ use crate::package::manifest::Resource;
 use crate::package::spine::SpineReference;
 
 pub mod manifest;
-pub mod property;
-pub mod spine;
 pub mod media_type;
 pub mod metadata;
 pub mod nav;
 pub mod parser;
 pub mod prefix;
+pub mod property;
+pub mod spine;
 
 /// A Package is made up of:
 /// - A [Metadata]: provides a standard way to include publication metadata.

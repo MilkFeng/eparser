@@ -35,7 +35,6 @@ pub struct MetadataElement {
     pub tag_name: WithNamespace,
 }
 
-
 /// Establishes an association between the current expression and
 /// the element or resource identified by its value.
 /// EPUB creators MUST use as the value a path-relative-scheme-less-URL string,
@@ -144,7 +143,6 @@ pub struct Link {
     pub value: String,
 }
 
-
 #[derive(Debug, Error)]
 pub enum MetadataCheckError {
     #[error("The metadata section MUST contain exactly at least one {0} element.")]
@@ -156,6 +154,9 @@ pub enum MetadataCheckError {
 
     #[error("The last modified date is invalid. {0}")]
     DateParseError(#[from] chrono::ParseError),
+}
+
+fn x() {
 }
 
 /// The metadata section of an EPUB Publication.
@@ -184,21 +185,17 @@ pub struct Metadata {
     _private: PhantomData<()>,
 }
 
-static DCTERMS_MODIFIED: Lazy<Property> = Lazy::new(|| {
-    Property::from_prefix(&DCTERMS, "modified".to_string())
-});
+static DCTERMS_MODIFIED: Lazy<Property> =
+    Lazy::new(|| Property::from_prefix(&DCTERMS, "modified".to_string()));
 
-static DC_TITLE: Lazy<WithNamespace> = Lazy::new(|| {
-    WithNamespace::from_prefix(&DC, "title".to_string())
-});
+static DC_TITLE: Lazy<WithNamespace> =
+    Lazy::new(|| WithNamespace::from_prefix(&DC, "title".to_string()));
 
-static DC_LANGUAGE: Lazy<WithNamespace> = Lazy::new(|| {
-    WithNamespace::from_prefix(&DC, "language".to_string())
-});
+static DC_LANGUAGE: Lazy<WithNamespace> =
+    Lazy::new(|| WithNamespace::from_prefix(&DC, "language".to_string()));
 
-static DC_IDENTIFIER: Lazy<WithNamespace> = Lazy::new(|| {
-    WithNamespace::from_prefix(&DC, "identifier".to_string())
-});
+static DC_IDENTIFIER: Lazy<WithNamespace> =
+    Lazy::new(|| WithNamespace::from_prefix(&DC, "identifier".to_string()));
 
 impl Metadata {
     /// Create a new Metadata
@@ -213,9 +210,7 @@ impl Metadata {
             // group metadata elements by property
             for elem in elems {
                 let wn = elem.tag_name.clone();
-                elems_map.entry(wn)
-                    .or_insert_with(Vec::new)
-                    .push(elem);
+                elems_map.entry(wn).or_insert_with(Vec::new).push(elem);
             }
             elems_map
         };
@@ -228,7 +223,9 @@ impl Metadata {
             ) -> Result<(), MetadataCheckError> {
                 let elems = elems_map.get(&tag_name);
                 if elems.is_none() || elems.unwrap().is_empty() {
-                    Err(MetadataCheckError::MissingElementError(tag_name.reference.clone()))
+                    Err(MetadataCheckError::MissingElementError(
+                        tag_name.reference.clone(),
+                    ))
                 } else {
                     Ok(())
                 }
@@ -241,12 +238,14 @@ impl Metadata {
 
         // check lastModified
         let last_modified = {
-            let last_modified = metas.iter()
+            let last_modified = metas
+                .iter()
                 .find(|&meta| meta.property.eq(&DCTERMS_MODIFIED))
-                .ok_or(MetadataCheckError::MissingLastModifiedError("dcterms:modified".to_string()))?;
+                .ok_or(MetadataCheckError::MissingLastModifiedError(
+                    "dcterms:modified".to_string(),
+                ))?;
 
-            DateTime::parse_from_rfc3339(&last_modified.value)?
-                .to_utc()
+            DateTime::parse_from_rfc3339(&last_modified.value)?.to_utc()
         };
 
         Ok(Metadata {

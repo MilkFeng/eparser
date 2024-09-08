@@ -8,7 +8,6 @@ use url::Url;
 
 use crate::file::Files;
 use crate::package::media_type::MediaType;
-use crate::package::nav::{Nav, parse_nav};
 use crate::package::prefix::prefixes::*;
 use crate::package::property::{Properties, Property};
 
@@ -46,18 +45,16 @@ pub struct Resource {
     pub properties: Option<Properties>,
 }
 
-
 pub trait ResourceMap {
     /// Get a resource content by [Resource].
-    fn get_by_res(&mut self, res: &Resource) -> Option<&Vec<u8>>;
+    async fn get_by_res(&mut self, res: &Resource) -> Option<&Vec<u8>>;
 }
 
 impl<F: Files> ResourceMap for F {
-    fn get_by_res(&mut self, res: &Resource) -> Option<&Vec<u8>> {
-        self.get(&res.href)
+    async fn get_by_res(&mut self, res: &Resource) -> Option<&Vec<u8>> {
+        self.get(&res.href).await
     }
 }
-
 
 #[derive(Debug, Error)]
 pub enum ManifestCheckError {
@@ -95,9 +92,7 @@ pub struct Manifest {
     nav_resource: usize,
 }
 
-static NAV: Lazy<Property> = Lazy::new(|| {
-    Property::from_prefix(&OPF, "nav".to_string())
-});
+static NAV: Lazy<Property> = Lazy::new(|| Property::from_prefix(&OPF, "nav".to_string()));
 
 impl Manifest {
     /// Create a new Manifest
@@ -120,17 +115,23 @@ impl Manifest {
         // check fallback
         for resource in resources.iter() {
             if let Some(fallback) = &resource.fallback {
-                id_to_resource.get(fallback)
+                id_to_resource
+                    .get(fallback)
                     .ok_or_else(|| ManifestCheckError::IdNotFound(fallback.clone()))?;
             }
         }
 
         // check nav
-        let nav_resource = resources.iter().position(|resource| {
-            resource.properties.as_ref()
-                .map(|properties| properties.contains(&NAV))
-                .unwrap_or(false)
-        }).ok_or(ManifestCheckError::NavResourceNotFound)?;
+        let nav_resource = resources
+            .iter()
+            .position(|resource| {
+                resource
+                    .properties
+                    .as_ref()
+                    .map(|properties| properties.contains(&NAV))
+                    .unwrap_or(false)
+            })
+            .ok_or(ManifestCheckError::NavResourceNotFound)?;
 
         Ok(Manifest {
             id: id.map(|id| id.to_string()),
@@ -143,13 +144,15 @@ impl Manifest {
 
     /// Get a resource by id
     pub fn get_resource_by_id(&self, id: &str) -> Option<&Resource> {
-        self.id_to_resource.get(id)
+        self.id_to_resource
+            .get(id)
             .map(|index| &self.resources[*index])
     }
 
     /// Get a resource by href
     pub fn get_resource_by_href(&self, href: &Url) -> Option<&Resource> {
-        self.href_to_resource.get(href)
+        self.href_to_resource
+            .get(href)
             .map(|index| &self.resources[*index])
     }
 
@@ -171,4 +174,3 @@ impl DerefMut for Manifest {
         &mut self.resources
     }
 }
-

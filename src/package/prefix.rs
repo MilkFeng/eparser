@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
-use once_cell::sync::Lazy;
 use crate::package::prefix::prefixes::*;
+use once_cell::sync::Lazy;
 
 /// A map of prefixes to namespaces.
 ///
@@ -20,7 +20,6 @@ pub trait PrefixMap {
     /// The namespace URI for the given prefix, or `None` if the prefix is not found.
     fn get(&self, prefix: &Option<String>) -> Option<&String>;
 }
-
 
 /// A prefix for a namespace.
 ///
@@ -114,7 +113,6 @@ pub mod prefixes {
         uri: "http://www.prismstandard.org/specifications/3.0/PRISM_CV_Spec_3.0.htm#".to_string(),
     });
 
-
     /// The default prefix for the OPF namespace.
     pub static OPF: Lazy<Prefix> = Lazy::new(|| Prefix {
         name: None,
@@ -123,7 +121,6 @@ pub mod prefixes {
 }
 
 pub type PrefixesInner = BTreeMap<Option<String>, String>;
-
 
 /// A map of prefixes to namespaces.
 #[derive(Debug, PartialEq, Clone)]
@@ -224,7 +221,6 @@ impl DerefMut for PrefixesStack {
         &mut self.0
     }
 }
-
 
 impl PrefixesStack {
     /// Create a new PrefixesStack from a list of Prefixes.

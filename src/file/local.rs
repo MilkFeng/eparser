@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
-use std::fs::{File, read_dir};
+use std::fs::{read_dir, File};
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 
@@ -22,13 +22,13 @@ impl Files for LocalFiles {
         &self.root_url
     }
 
-    fn get(&mut self, url: &Url) -> Option<&Vec<u8>> {
+    async fn get(&mut self, url: &Url) -> Option<&Vec<u8>> {
         // remove the fragment from the URL
-        return if url.path_segments().is_none() {
+        if url.path_segments().is_none() {
             self.files.get(url)
         } else {
             self.files.get(&url.join("").unwrap())
-        };
+        }
     }
 }
 
@@ -97,7 +97,7 @@ impl<R: Read> Files for LazyLocalFiles<R> {
         &self.root_url
     }
 
-    fn get(&mut self, url: &Url) -> Option<&Vec<u8>> {
+    async fn get(&mut self, url: &Url) -> Option<&Vec<u8>> {
         let LazyLocalFiles { files, .. } = self;
 
         // remove the fragment from the URL
@@ -113,7 +113,7 @@ impl<R: Read> Files for LazyLocalFiles<R> {
 
         let lazy_file = lazy_file.unwrap();
 
-        return if let LazyFile::Loaded(bytes) = lazy_file {
+        if let LazyFile::Loaded(bytes) = lazy_file {
             // if the file is already loaded, return the bytes
             Some(bytes)
         } else {
@@ -127,8 +127,8 @@ impl<R: Read> Files for LazyLocalFiles<R> {
             *lazy_file = LazyFile::Loaded(content);
 
             // return the bytes
-            Some(lazy_file.bytes().unwrap())
-        };
+            Some(lazy_file.bytes()?)
+        }
     }
 }
 
@@ -142,7 +142,9 @@ pub enum LocalFilesError {
 }
 
 /// Read files from a ZIP archive.
-pub fn read_from_zip<R: Read + Seek>(zip: &mut ZipArchive<R>) -> Result<LocalFiles, LocalFilesError> {
+pub fn read_from_zip<R: Read + Seek>(
+    zip: &mut ZipArchive<R>,
+) -> Result<LocalFiles, LocalFilesError> {
     let mut files = LocalFiles::empty();
     for i in 0..zip.len() {
         let mut file = zip.by_index(i)?;
@@ -212,7 +214,9 @@ pub fn lazy_read_from_dir(path: impl AsRef<Path>) -> Result<LazyLocalFiles<File>
         let rel_path = file_path.strip_prefix(&path).unwrap();
         let rel_path_str = rel_path.to_str().unwrap().replace("\\", "/");
         let url = Url::parse(&format!("epub:/{}", rel_path_str)).unwrap();
-        files.files.insert(url, LazyFile::NotLoaded(File::open(&file_path)?));
+        files
+            .files
+            .insert(url, LazyFile::NotLoaded(File::open(&file_path)?));
     }
     Ok(files)
 }

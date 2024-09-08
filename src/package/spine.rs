@@ -10,7 +10,6 @@ pub struct SpineReference {
     pub linear: Option<bool>,
 }
 
-
 /// The spine element defines the default reading order of the publication.
 ///
 /// It is made up of a list of spine references that point to resources in the manifest.
@@ -26,7 +25,6 @@ pub struct Spine {
     pub refs: Vec<SpineReference>,
 }
 
-
 impl Deref for Spine {
     type Target = Vec<SpineReference>;
 
@@ -34,7 +32,6 @@ impl Deref for Spine {
         &self.refs
     }
 }
-
 
 impl DerefMut for Spine {
     fn deref_mut(&mut self) -> &mut Self::Target {

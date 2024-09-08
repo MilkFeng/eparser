@@ -74,7 +74,6 @@ pub enum XHTMLParseError {
 }
 
 
-
 pub fn parse_xhtml(s: &str) -> Result<XHTML, XHTMLParseError> {
     let xhtml = s.parse::<Element>()?;
     XHTML::new(xhtml)

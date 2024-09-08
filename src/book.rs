@@ -1,13 +1,11 @@
-use std::fmt::{Debug, Display};
-use std::ops::{Deref, DerefMut};
-
-use thiserror::Error;
-
 use crate::file::Files;
-use crate::oebps::{Container, ContainerError};
-use crate::package::Package;
+use crate::oebps::{parse_container, ContainerError};
 use crate::package::parser::{PackageError, PackageParseOptions, PackageParser};
 use crate::package::prefix::Prefixes;
+use crate::package::Package;
+use std::fmt::{Debug, Display};
+use std::ops::{Deref, DerefMut};
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct EpubBook(Vec<Package>);
@@ -36,7 +34,6 @@ impl DerefMut for EpubBook {
     }
 }
 
-
 #[derive(Debug, Error)]
 pub enum ParseBookError {
     #[error("The book is missing a META-INF/container.xml file")]
@@ -59,20 +56,20 @@ pub enum ParseBookError {
 }
 
 /// Parse an EPUB book.
-pub fn parse_book<F: Files>(files: &mut F) -> Result<EpubBook, ParseBookError> {
+pub async fn parse_book<F: Files>(files: &mut F) -> Result<EpubBook, ParseBookError> {
     let container = {
-        let url = files.root_url()
+        let root_url = files.root_url().clone();
+        let url = root_url
             .join("META-INF/container.xml")
             .map_err(ParseBookError::UrlParseError)?;
-
-        let data = files.get(&url)
+        let data = files
+            .get(&url)
+            .await
             .ok_or(ParseBookError::MissingContainer)?;
 
-        let str = std::str::from_utf8(data)
-            .map_err(ParseBookError::Utf8Error)?;
+        let str = std::str::from_utf8(data).map_err(ParseBookError::Utf8Error)?;
 
-        str.parse::<Container>()
-            .map_err(ParseBookError::ParseContainerError)?
+        parse_container(str, &root_url).map_err(ParseBookError::ParseContainerError)?
     };
 
     let package_parse_options = PackageParseOptions {
@@ -82,18 +79,20 @@ pub fn parse_book<F: Files>(files: &mut F) -> Result<EpubBook, ParseBookError> {
 
     let mut package_parser = PackageParser::new(package_parse_options);
 
-    let packages = container.rootfiles.iter()
-        .map(|rootfile| {
-            let data = files.get(&rootfile.full_path)
-                .ok_or_else(|| ParseBookError::MissingPackage(rootfile.full_path.to_string()))?;
+    let mut packages = Vec::new();
+    for rootfile in &container.rootfiles {
+        let data = files
+            .get(&rootfile.full_path)
+            .await
+            .ok_or_else(|| ParseBookError::MissingPackage(rootfile.full_path.to_string()))?;
 
-            let str = std::str::from_utf8(data)
-                .map_err(ParseBookError::Utf8Error)?;
+        let str = std::str::from_utf8(data).map_err(ParseBookError::Utf8Error)?;
 
-            package_parser.parse(str)
-                .map_err(ParseBookError::ParsePackageError)
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        let package = package_parser
+            .parse(str)
+            .map_err(ParseBookError::ParsePackageError)?;
 
+        packages.push(package);
+    }
     Ok(EpubBook(packages))
 }
